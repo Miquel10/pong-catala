@@ -1,0 +1,198 @@
+// --- CONFIGURACIÓ INICIAL ---
+const canvas = document.getElementById('pongCanvas');
+const ctx = canvas.getContext('2d');
+
+const NOM_DEL_JOC = "Articles Determinats"; // Podria ser 'Indeterminats'
+
+// Dades del Repte Lingüístic (Exemples de noms en català)
+const NOMS_CATALANS = [
+    { nom: "taula", article: "LA" },
+    { nom: "gos", article: "EL" },
+    { nom: "cases", article: "LES" },
+    { nom: "llibres", article: "ELS" },
+    { nom: "illa", article: "L'" }, // Afegim l'apòstrof com a complexitat
+    { nom: "home", article: "L'" }
+];
+
+// Opcions possibles a la pala.
+const ARTICLES_PALES = ['EL', 'LA', 'ELS', 'LES', 'L\''];
+const PADDLE_SECTIONS = 5; // Nombre de seccions de la pala (igual que ARTICLES_PALES)
+
+let scoreEsquerra = 0;
+let scoreDreta = 0;
+let repteActual = null;
+
+// Objectes del Joc
+const pala = { width: 10, height: canvas.height / PADDLE_SECTIONS, speed: 6 };
+let palaEsquerra = { x: 0, y: (canvas.height - pala.height) / 2, correctSection: 0 };
+let palaDreta = { x: canvas.width - pala.width, y: (canvas.height - pala.height) / 2, correctSection: 0 };
+
+let bola = { x: canvas.width / 2, y: canvas.height / 2, radius: 5, dx: 5, dy: 5, speed: 5 };
+
+// --- FUNCIONS LINGÜÍSTIQUES ---
+
+function triarNouRepte() {
+    const nouRepte = NOMS_CATALANS[Math.floor(Math.random() * NOMS_CATALANS.length)];
+    repteActual = nouRepte;
+    document.getElementById('repte').innerText = `${NOM_DEL_JOC} | Troba: ${nouRepte.nom.toUpperCase()}`;
+    
+    // Assignar la secció correcta a les pales
+    palaEsquerra.correctSection = ARTICLES_PALES.indexOf(nouRepte.article);
+    palaDreta.correctSection = ARTICLES_PALES.indexOf(nouRepte.article);
+}
+
+function comprovarColisioPala(palaObj, articleCorrecte) {
+    const palaTop = palaObj.y;
+    const palaBottom = palaObj.y + pala.height;
+    const seccioHeight = pala.height / PADDLE_SECTIONS;
+    
+    // Calcular la secció on ha impactat la pilota
+    const impactY = bola.y - palaTop;
+    const seccioImpactada = Math.floor(impactY / seccioHeight);
+
+    // Comparar si la secció d'impacte conté l'article correcte
+    if (seccioImpactada === palaObj.correctSection) {
+        // REBOT CORRECTE (LINGÜÍSTICAMENT VÀLID)
+        bola.dx = -bola.dx;
+        // Augmentar velocitat lleugerament per mantenir el ritme
+        bola.speed += 0.5; 
+        
+    } else {
+        // REBOT INCORRECTE (ERROR LINGÜÍSTIC)
+        
+        // El jugador perd el punt
+        if (palaObj === palaEsquerra) {
+            scoreDreta++;
+        } else {
+            scoreEsquerra++;
+        }
+        document.getElementById('score-esquerra').innerText = scoreEsquerra;
+        document.getElementById('score-dreta').innerText = scoreDreta;
+
+        // Reiniciar la bola i el repte
+        reiniciarBola();
+    }
+}
+
+
+// --- LÒGICA PONG CLÀSSICA (Adaptada) ---
+
+function dibuixar() {
+    // Fons
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Dibuixar pales i marcar les seccions d'article
+    for (let i = 0; i < PADDLE_SECTIONS; i++) {
+        const y_seccio = palaEsquerra.y + i * (pala.height / PADDLE_SECTIONS);
+        const y_text = y_seccio + (pala.height / PADDLE_SECTIONS) / 2 + 5;
+
+        // Pala Esquerra
+        ctx.fillStyle = i === palaEsquerra.correctSection ? 'green' : 'gray';
+        ctx.fillRect(palaEsquerra.x, y_seccio, pala.width, pala.height / PADDLE_SECTIONS);
+        ctx.fillStyle = 'white';
+        ctx.font = '8px Arial';
+        ctx.fillText(ARTICLES_PALES[i], palaEsquerra.x + 2, y_text);
+        
+        // Pala Dreta
+        ctx.fillStyle = i === palaDreta.correctSection ? 'green' : 'gray';
+        ctx.fillRect(palaDreta.x, y_seccio, pala.width, pala.height / PADDLE_SECTIONS);
+        ctx.fillStyle = 'white';
+        ctx.font = '8px Arial';
+        ctx.fillText(ARTICLES_PALES[i], palaDreta.x + 2, y_text);
+    }
+    
+    // Dibuixar la Bola
+    ctx.beginPath();
+    ctx.arc(bola.x, bola.y, bola.radius, 0, Math.PI * 2);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+}
+
+function actualitzar() {
+    // 1. Moure la Bola
+    bola.x += bola.dx;
+    bola.y += bola.dy;
+
+    // 2. Col·lisions de la Bola amb les parets superiors/inferiors
+    if (bola.y + bola.radius > canvas.height || bola.y - bola.radius < 0) {
+        bola.dy = -bola.dy; // Rebot vertical
+    }
+
+    // 3. Col·lisions de la Bola amb les pales
+    
+    // Pala Dreta
+    if (bola.x + bola.radius > palaDreta.x && 
+        bola.y > palaDreta.y && bola.y < palaDreta.y + pala.height) {
+        comprovarColisioPala(palaDreta, repteActual.article);
+    }
+
+    // Pala Esquerra
+    if (bola.x - bola.radius < palaEsquerra.x + pala.width && 
+        bola.y > palaEsquerra.y && bola.y < palaEsquerra.y + pala.height) {
+        comprovarColisioPala(palaEsquerra, repteActual.article);
+    }
+    
+    // 4. Marcar punt (la bola surt pels costats)
+    if (bola.x < 0 || bola.x > canvas.width) {
+        if (bola.x < 0) { // Si surt per l'esquerra
+            scoreDreta++;
+        } else { // Si surt per la dreta
+            scoreEsquerra++;
+        }
+        document.getElementById('score-esquerra').innerText = scoreEsquerra;
+        document.getElementById('score-dreta').innerText = scoreDreta;
+
+        reiniciarBola();
+    }
+}
+
+function reiniciarBola() {
+    bola.x = canvas.width / 2;
+    bola.y = canvas.height / 2;
+    bola.dx = -bola.dx; // Canvi de direcció inicial
+    bola.speed = 5;
+    triarNouRepte(); // Important: nou repte lingüístic
+}
+
+// --- CONTROLS ---
+
+// Control de la Pala Esquerra (Ratolí) - Mode 1 jugador
+canvas.addEventListener('mousemove', function(e) {
+    let rect = canvas.getBoundingClientRect();
+    let root = document.documentElement;
+    let mouseY = e.clientY - rect.top - root.scrollTop;
+    
+    // Assegurar-se que la pala estigui al centre del ratolí
+    palaEsquerra.y = mouseY - pala.height / 2; 
+
+    // Límit superior/inferior
+    if (palaEsquerra.y < 0) palaEsquerra.y = 0;
+    if (palaEsquerra.y > canvas.height - pala.height) palaEsquerra.y = canvas.height - pala.height;
+});
+
+
+// Control de la Pala Dreta (Tecles) - Mode 2 jugadors o IA
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowUp') {
+        palaDreta.y -= pala.speed * 4;
+    } else if (e.key === 'ArrowDown') {
+        palaDreta.y += pala.speed * 4;
+    }
+    // Límit superior/inferior
+    if (palaDreta.y < 0) palaDreta.y = 0;
+    if (palaDreta.y > canvas.height - pala.height) palaDreta.y = canvas.height - pala.height;
+});
+
+
+// --- BUCLE PRINCIPAL DEL JOC ---
+
+function loop() {
+    actualitzar();
+    dibuixar();
+    requestAnimationFrame(loop);
+}
+
+// Inicialització
+triarNouRepte();
+loop();
